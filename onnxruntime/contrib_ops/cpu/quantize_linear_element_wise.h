@@ -9,17 +9,6 @@
 
 namespace onnxruntime {
 namespace contrib {
-namespace quantize {
-
-template <typename T>
-class QLinearElementWiseBase {
- public:
-  QLinearElementWiseBase() = default;
-  onnxruntime::common::Status CheckInputs(OpKernelContext* context);
-
-  T zeroA, zeroB, zeroC;
-  float
-};
 
 template <typename T>
 class QLinearAdd final : public OpKernel {
@@ -39,6 +28,5 @@ class QLinearMul final : public OpKernel {
   Status Compute(OpKernelContext* context) const override;
 };
 
-}  // namespace quantize
 }  // namespace contrib
 }  // namespace onnxruntime
