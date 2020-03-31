@@ -15,22 +15,18 @@ using onnxruntime::common::Status;
 namespace onnxruntime {
 namespace contrib {
 
-#define REG_QUANTIZE_LINEAR_ELEMENTWISE_TYPED_KERNEL(OP_TYPE, VERSION, DATATYPE, KERNEL_CLASS) \
-  ONNX_OPERATOR_TYPED_KERNEL_EX(                                                               \
-      OP_TYPE,                                                                                 \
-      kMSDomain,                                                                               \
-      VERSION,                                                                                 \
-      DATATYPE,                                                                                \
-      kCpuExecutionProvider,                                                                   \
-      KernelDefBuilder()                                                                       \
-          .TypeConstraint("T", DataTypeImpl::GetTensorType<DATATYPE>()),                       \
-      KERNEL_CLASS<DATATYPE>);
+#define REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(op_name, version, data_type, KERNEL_CLASS) \
+  ONNX_CPU_OPERATOR_TYPED_MS_KERNEL( \
+      op_name, version,  data_type,  \
+      KernelDefBuilder() \
+        .TypeConstraint("T", DataTypeImpl::GetTensorType<data_type>()), \
+      KERNEL_CLASS<data_type>);
 
-REG_QUANTIZE_LINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearAdd, 1, int8_t, QLinearAdd)
-REG_QUANTIZE_LINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearAdd, 1, uint8_t, QLinearAdd)
+REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearAdd, 1, int8_t, QLinearAdd);
+REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearAdd, 1, uint8_t, QLinearAdd);
 
-REG_QUANTIZE_LINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearMul, 1, int8_t, QLinearMul)
-REG_QUANTIZE_LINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearMul, 1, uint8_t, QLinearMul)
+//REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearMul, 1, int8_t, QLinearMul)
+//REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearMul, 1, uint8_t, QLinearMul)
 
 // Broadcast loop for when using gsl::span<T>, functions are in this form:
 // Input0Scalar: [](gsl::span<TOutput> output, TInput0 input0, gsl::span<const TInput1> input1, a_scale, b_scale, c_scale, a_zero, b_zero, c_zero)
