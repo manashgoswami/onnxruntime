@@ -51,15 +51,16 @@ Status QLinearAdd<T>::Compute(OpKernelContext* context) const {
   return QLinearBroadcastTwo<T>(
       *context,
       [](EigenVectorMap<T> output, T input0, ConstEigenVectorMap<T> input1, float a_scale, float b_scale, float c_scale, T a_zero, T b_zero, T c_zero) {
-        float a_value = a_scale * (input0 - a_zero);
-        output = ((((input1.array() - b_zero).template cast<float>() * b_scale) + a_value) / c_scale - c_zero).template cast<T>();
+        float a_value = a_scale * (static_cast<int>(input0) - static_cast<int>(a_zero));
+        output = (((((input1.array().template cast<int>() - static_cast<int>(b_zero)).template cast<float>() * b_scale) + a_value) / c_scale).round() - static_cast<float>(c_zero)).template cast<T>();
       },
       [](EigenVectorMap<T> output, ConstEigenVectorMap<T> input0, T input1, float a_scale, float b_scale, float c_scale, T a_zero, T b_zero, T c_zero) {
-        float b_value = b_scale * (input1 - b_zero);
-        output = ((((input0.array() - a_zero).template cast<float>() * a_scale) + b_value) / c_scale - c_zero).template cast<T>();
+        float b_value = b_scale * (static_cast<int>(input1) - static_cast<int>(b_zero));
+        output = (((((input0.array().template cast<int>() - static_cast<int>(a_zero)).template cast<float>() * a_scale) + b_value) / c_scale).round() - static_cast<float>(c_zero)).template cast<T>();
       },
       [](EigenVectorMap<T> output, ConstEigenVectorMap<T> input0, ConstEigenVectorMap<T> input1, float a_scale, float b_scale, float c_scale, T a_zero, T b_zero, T c_zero) {
-        output = ((((input0.array() - a_zero).template cast<float>() * a_scale) + ((input1.array() - b_zero).template cast<float>() * b_scale)) / c_scale - c_zero).template cast<T>();
+        output = (((((input0.array().template cast<int>() - static_cast<int>(a_zero)).template cast<float>() * a_scale) + 
+                    ((input1.array().template cast<int>() - static_cast<int>(b_zero)).template cast<float>() * b_scale)) / c_scale).round() - static_cast<float>(c_zero)).template cast<T>();
       });
 }
 

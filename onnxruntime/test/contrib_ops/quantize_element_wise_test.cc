@@ -4,6 +4,7 @@
 #include "gtest/gtest.h"
 #include "test/providers/provider_test_utils.h"
 #include "core/providers/cpu/math/element_wise_ops.h"
+#include "core/providers/common.h"
 
 namespace onnxruntime {
 namespace test {
@@ -34,28 +35,19 @@ RunQLinearMathTestFromFloat(const char* op_name, CalcFunction calc,
   auto c_size = calc_strides(c_shape, c_strides);
   calc_strides(a_shape, a_strides);
   calc_strides(b_shape, b_strides);
-  std::vector<T> c(c_size);
 
-  for (int64_t offset = 0; offset < c_size; ++offset) {
-    int64_t a_remain = offset, b_remain = offset;
-    int64_t a_offset = 0,  b_offset = 0;
-    for (int axis = 0, n = c_shape.size(); axis < n; ++axis) {
-      a_offset += ((a_remain / a_strides[axis]) % a_shape[axis]) * a_strides[axis];
-      b_offset += ((b_remain / b_strides[axis]) % b_shape[axis]) * b_strides[axis];
-      a_remain = a_remain % a_strides[axis];
-      b_remain = b_remain % b_strides[axis];
-    }
-    
-    T a_quantized = static_cast<T>(a[a_offset] / a_scale + a_zero);
-    float a_dequantized = a_scale * (static_cast<int>(a_quantized) - a_zero);
-    T b_quantized = static_cast<T>(b[b_offset] / b_scale + b_zero);
-    float b_dequantized = b_scale * (static_cast<int>(b_quantized) - b_zero);
-    c[offset] = static_cast<T>(calc(a_dequantized, b_dequantized) / c_scale + c_zero);
-  }
+  const float qmax = std::numeric_limits<T>::max();
+  const float qmin_default = std::numeric_limits<T>::min();
+  // adjust qmin for int8 inputs. This is required to keep zero point as zero
+  const float qmin = qmin_default == -128 ? -127 : qmin_default;
+
+  int a_zero_int = static_cast<int>(a_zero);
+  int b_zero_int = static_cast<int>(b_zero);
+  int c_zero_int = static_cast<int>(c_zero);
 
   std::vector<T> a_quantized(a.size());
   for (size_t i = 0, sz = a.size(); i < sz; ++i) {
-      a_quantized[i] = static_cast<T>(a[i] / a_scale + a_zero);
+    a_quantized[i] = static_cast<T>(clamp(a[i] / a_scale + a_zero_int, qmin, qmax));
   }
   test.template AddInput<T>("A", a_shape, a_quantized);
   test.AddInput<float>("A_scale", {},  {a_scale});
@@ -63,11 +55,27 @@ RunQLinearMathTestFromFloat(const char* op_name, CalcFunction calc,
 
   std::vector<T> b_quantized(b.size());
   for (size_t i = 0, sz = b.size(); i < sz; ++i) {
-      b_quantized[i] = static_cast<T>(b[i] / b_scale + b_zero);
+    b_quantized[i] = static_cast<T>(clamp(b[i] / b_scale + b_zero_int, qmin, qmax));
   }
   test.template AddInput<T>("B", b_shape, b_quantized);
   test.AddInput<float>("B_scale", {}, {b_scale});
   test.template AddInput<T>("B_zero_point", {}, {b_zero});
+
+  std::vector<T> c(c_size);
+  for (int64_t offset = 0; offset < c_size; ++offset) {
+    int64_t a_remain = offset, b_remain = offset;
+    int64_t a_offset = 0, b_offset = 0;
+    for (int axis = 0, n = c_shape.size(); axis < n; ++axis) {
+      a_offset += ((a_remain / a_strides[axis]) % a_shape[axis]) * a_strides[axis];
+      b_offset += ((b_remain / b_strides[axis]) % b_shape[axis]) * b_strides[axis];
+      a_remain = a_remain % a_strides[axis];
+      b_remain = b_remain % b_strides[axis];
+    }
+    
+    float a_dequantized = a_scale * (static_cast<int>(a_quantized[a_offset]) - a_zero_int);
+    float b_dequantized = b_scale * (static_cast<int>(b_quantized[b_offset]) - b_zero_int);
+    c[offset] = static_cast<T>(std::round(calc(a_dequantized, b_dequantized) / c_scale) + c_zero_int);
+  }
 
   test.AddInput<float>("C_scale", {}, {c_scale});
   test.template AddInput<T>("C_zero_point", {}, {c_zero});
@@ -77,7 +85,6 @@ RunQLinearMathTestFromFloat(const char* op_name, CalcFunction calc,
 }
 
 TEST(QuantizeLinearContribMathOpTest, AddUInt8) {
-  OpTester test("QLinearAdd", 1, onnxruntime::kMSDomain);
   std::vector<float> A = {0.8f, 0.3f, 0.1f, -0.5f, -0.2f, -0.6f, -0.9f, 0.0f, -1.0f, 1.0f};
   std::vector<int64_t> A_shape = {2,  5};
   std::vector<int64_t> C_shape = A_shape;
@@ -98,7 +105,6 @@ TEST(QuantizeLinearContribMathOpTest, AddUInt8) {
 }
 
 TEST(QuantizeLinearContribMathOpTest, AddInt8) {
-  OpTester test("QLinearAdd", 1, onnxruntime::kMSDomain);
   std::vector<float> A = {0.8f, 0.3f, 0.1f, -0.5f, -0.2f, -0.6f, -0.9f, 0.0f, -1.0f, 1.0f};
   std::vector<int64_t> A_shape = {2, 5};
   std::vector<int64_t> C_shape = A_shape;
