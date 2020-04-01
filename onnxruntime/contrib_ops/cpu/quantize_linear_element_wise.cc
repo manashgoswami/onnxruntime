@@ -4,29 +4,12 @@
 #include "quantize_linear_element_wise.h"
 
 #include "core/providers/cpu/math/element_wise_ops.h"
-#include <unsupported/Eigen/SpecialFunctions>
-#include "core/util/math.h"
-#include "core/mlas/inc/mlas.h"
-
-#include <cmath>
-
-using onnxruntime::common::Status;
+//#include <unsupported/Eigen/SpecialFunctions>
+//#include "core/util/math.h"
+//#include <cmath>
 
 namespace onnxruntime {
 namespace contrib {
-
-#define REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(op_name, version, data_type, KERNEL_CLASS) \
-  ONNX_CPU_OPERATOR_TYPED_MS_KERNEL( \
-      op_name, version,  data_type,  \
-      KernelDefBuilder() \
-        .TypeConstraint("T", DataTypeImpl::GetTensorType<data_type>()), \
-      KERNEL_CLASS<data_type>);
-
-REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearAdd, 1, int8_t, QLinearAdd);
-REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearAdd, 1, uint8_t, QLinearAdd);
-
-//REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearMul, 1, int8_t, QLinearMul)
-//REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearMul, 1, uint8_t, QLinearMul)
 
 // Broadcast loop for when using gsl::span<T>, functions are in this form:
 // Input0Scalar: [](gsl::span<TOutput> output, TInput0 input0, gsl::span<const TInput1> input1, a_scale, b_scale, c_scale, a_zero, b_zero, c_zero)
@@ -96,6 +79,23 @@ Status QLinearMul<T>::Compute(OpKernelContext* context) const {
         output = (((input0.array() - a_zero).template cast<float>() * a_scale) * ((input1.array() - b_zero).template cast<float>() * b_scale) / c_scale - c_zero).template cast<T>();
       });
 }
+
+template class QLinearAdd<int8_t>;
+template class QLinearAdd<uint8_t>;
+
+
+#define REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(op_name, version, data_type, KERNEL_CLASS) \
+  ONNX_CPU_OPERATOR_TYPED_MS_KERNEL( \
+      op_name, version,  data_type,  \
+      KernelDefBuilder() \
+        .TypeConstraint("T", DataTypeImpl::GetTensorType<data_type>()), \
+      KERNEL_CLASS<data_type>);
+
+REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearAdd, 1, int8_t, QLinearAdd);
+REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearAdd, 1, uint8_t, QLinearAdd);
+//REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearMul, 1, int8_t, QLinearMul)
+//REG_QLINEAR_ELEMENTWISE_TYPED_KERNEL(QLinearMul, 1, uint8_t, QLinearMul)
+
 
 }  // namespace contrib
 }  // namespace onnxruntime
